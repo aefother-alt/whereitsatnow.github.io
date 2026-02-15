@@ -71,6 +71,28 @@
     </div>
   </div>
 </div>
+.stageGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.stageCard {
+  flex: 0 1 160px;      /* wrap nicely */
+  max-width: 180px;
+}
+
+@media (max-width: 700px) {
+  .stageGrid {
+    flex-wrap: nowrap;   /* on phones, use scroll */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+  }
+  .stageCard {
+    flex: 0 0 160px;     /* fixed width cards */
+  }
+}
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
