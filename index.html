@@ -109,8 +109,9 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
   import {
-    getFirestore, collection, doc, getDocs, getDoc, query, where
-  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  getFirestore, collection, doc, getDocs, getDoc, query, where,
+  setDoc, serverTimestamp, increment
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
   import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js";
 
   // Your Firebase config
