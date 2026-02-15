@@ -6,387 +6,554 @@
   <title>Where It’s At Now</title>
 
   <style>
-    body { font-family: system-ui, Arial; margin:0; background:#fafafa; }
-    header { position:sticky; top:0; background:#fff; border-bottom:1px solid #e6e6e6; padding:12px 16px; z-index:5; }
-    .wrap { max-width: 980px; margin:0 auto; padding:16px; }
-    .row { display:flex; gap:12px; flex-wrap:wrap; }
-    .card { background:#fff; border:1px solid #e6e6e6; border-radius:14px; padding:14px; }
-    input, button { padding:10px; border-radius:10px; border:1px solid #d7d7d7; }
-    button { cursor:pointer; background:#111; color:#fff; border:none; }
-    button.secondary { background:#eee; color:#111; border:1px solid #ddd; }
-    button:disabled { opacity:0.5; cursor:not-allowed; }
-    .pill { display:inline-block; padding:4px 10px; border:1px solid #ddd; border-radius:999px; font-size:12px; white-space:nowrap; }
-    .muted { color:#666; font-size:13px; }
-    .list { display:grid; gap:10px; }
-    .error { color:#b00020; font-size:13px; white-space:pre-wrap; }
+    :root{
+      --bg:#fafafa; --card:#fff; --border:#e6e6e6; --text:#111; --muted:#666;
+      --pill:#f4f4f4; --btn:#111; --btnText:#fff;
+      --radius:14px;
+    }
+    body{ font-family:system-ui,-apple-system,Segoe UI,Arial; margin:0; background:var(--bg); color:var(--text); }
+    header{ position:sticky; top:0; background:var(--card); border-bottom:1px solid var(--border); z-index:5; }
+    .wrap{ max-width:980px; margin:0 auto; padding:14px 16px; }
+    .topRow{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+    h1{ margin:0; font-size:26px; line-height:1.15; }
+    .sub{ margin-top:2px; color:var(--muted); font-size:14px; }
+    .rightTop{ display:flex; gap:10px; align-items:center; }
+    button{ cursor:pointer; border:1px solid #d7d7d7; border-radius:12px; padding:10px 12px; background:#eee; }
+    .primary{ background:var(--btn); color:var(--btnText); border:none; }
+    .pill{ display:inline-block; padding:4px 10px; border-radius:999px; background:var(--pill); border:1px solid #ddd; font-size:13px; color:#333; }
+    .row{ display:flex; gap:12px; flex-wrap:wrap; }
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px; }
+    .card h2{ margin:0 0 4px 0; font-size:20px; }
+    input{ width:100%; box-sizing:border-box; padding:10px 12px; border-radius:12px; border:1px solid #d7d7d7; }
 
-    /* Stage layout */
-    #stages { max-width:100%; overflow:hidden; }
-    .stageGrid {
+    .colLeft{ flex:1 1 360px; min-width:320px; }
+    .colRight{ flex:1 1 520px; min-width:320px; }
+
+    .hallItem{ border:1px solid #eee; border-radius:14px; padding:14px; margin-top:10px; }
+    .hallTitle{ display:flex; justify-content:space-between; gap:10px; }
+    .hallName{ font-weight:800; font-size:24px; margin:0; }
+    .hallAddr{ color:var(--muted); margin-top:2px; }
+    .hallMeta{ color:#444; margin-top:2px; font-size:14px; }
+    .openBtn{ width:100%; margin-top:10px; border-radius:12px; padding:12px; }
+
+    .detailHeader{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+    .detailTitle{ margin:0; font-size:26px; font-weight:900; line-height:1.1; }
+    .detailAddr{ color:var(--muted); margin-top:2px; }
+    .stageGrid{
       display:flex;
-      flex-wrap:wrap;
       gap:10px;
-      align-items:stretch;
+      flex-wrap:nowrap;
+      overflow-x:auto;
+      -webkit-overflow-scrolling:touch;
+      padding:10px 2px 10px 2px;
       max-width:100%;
     }
-    .stageCard {
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      padding:10px;
-      border:1px solid #eee;
-      border-radius:12px;
-      background:#fff;
-      width:170px;
-      flex: 0 0 170px;
-      max-width:170px;
+    .stageCard{
+      flex:0 0 160px;
+      width:160px;
+      max-width:160px;
+      border-radius:16px;
+      background:#777;
+      color:#fff;
+      padding:12px;
+      position:relative;
+      box-sizing:border-box;
     }
+    .stageName{ font-weight:900; font-size:18px; line-height:1.05; margin:0 0 6px 0; }
+    .stageStats{ font-size:14px; opacity:0.85; }
+    .voteBtn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+      border:none;
+      background:#000;
+      color:#fff;
+      border-radius:12px;
+      padding:9px 10px;
+      width:100%;
+      margin-top:10px;
+    }
+    .voteBtn:disabled{ opacity:0.55; cursor:not-allowed; }
+    .note{ color:var(--muted); margin-top:10px; }
 
-    @media (max-width: 700px) {
-      .stageGrid {
-        flex-wrap:nowrap;
-        overflow-x:auto;
-        -webkit-overflow-scrolling:touch;
-        padding-bottom:6px;
-      }
-      .stageCard { width:170px; flex:0 0 170px; }
+    .error{ color:#b00020; white-space:pre-wrap; margin-top:8px; }
+    .ok{ color:#0b6; white-space:pre-wrap; margin-top:8px; }
+
+    @media (max-width:700px){
+      h1{ font-size:22px; }
+      .detailTitle{ font-size:22px; }
+      .stageCard{ flex:0 0 150px; width:150px; max-width:150px; }
     }
   </style>
 </head>
 
 <body>
-<header>
-  <div class="row" style="align-items:center; justify-content:space-between;">
-    <div>
-      <div style="font-weight:700;">Where It’s At Now</div>
-      <div class="muted" id="geoText">Location: not requested</div>
-      <div class="error" id="errText" style="display:none;"></div>
-    </div>
-    <div class="row" style="align-items:center;">
-      <button id="btnLoc" class="secondary">Use my location</button>
-      <span class="pill" id="devicePill"></span>
-    </div>
-  </div>
-</header>
-
-<div class="wrap">
-  <div class="card">
-    <div class="row" style="align-items:center; justify-content:space-between;">
-      <div>
-        <div style="font-weight:700;">Search halls</div>
-        <div class="muted">Outside radius = view only. Inside radius = can thumbs-up.</div>
-      </div>
-      <input id="search" placeholder="Search by hall name" style="flex:1; min-width:220px;" />
-    </div>
-  </div>
-
-  <div style="height:12px;"></div>
-
-  <div class="row">
-    <div class="card" style="flex:1; min-width:320px;">
-      <div style="font-weight:700; margin-bottom:10px;">Halls</div>
-      <div id="halls" class="list"></div>
-    </div>
-
-    <div class="card" style="flex:1; min-width:320px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+  <header>
+    <div class="wrap">
+      <div class="topRow">
         <div>
-          <div style="font-weight:700;" id="hallTitle">Select a hall</div>
-          <div class="muted" id="hallMeta"></div>
+          <h1>Where It’s At Now</h1>
+          <div id="locLine" class="sub">Location: not requested</div>
+          <div id="errBox" class="error" style="display:none;"></div>
         </div>
-        <span class="pill" id="insidePill">—</span>
+        <div class="rightTop">
+          <button id="locBtn">Use my location</button>
+          <span class="pill" id="devicePill">Device: …</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap" style="padding-top:18px;">
+    <div class="card" style="margin-bottom:12px;">
+      <div class="row" style="align-items:center;">
+        <div style="flex:1 1 320px;">
+          <h2 style="margin:0;">Search halls</h2>
+          <div class="sub">Outside radius = view only. Inside radius = can thumbs-up.</div>
+        </div>
+        <div style="flex:2 1 420px;">
+          <input id="searchInput" placeholder="Search by hall name" />
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card colLeft">
+        <h2>Halls</h2>
+        <div id="hallsBox" class="sub" style="margin-top:10px;">Loading…</div>
       </div>
 
-      <div style="height:12px;"></div>
-      <div id="stages"></div>
-
-      <div class="muted" id="statusMsg" style="margin-top:10px;"></div>
-    </div>
-  </div>
-</div>
-
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-  import {
-  getFirestore, collection, doc, getDocs, getDoc, query, where,
-  setDoc, serverTimestamp, increment
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-  import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js";
-
-  // Your Firebase config
-  const firebaseConfig = {
-    apiKey: "AIzaSyAukrjIr-u3dKyCyk-0PTJVoQPcBf2a6-4",
-    authDomain: "where-its-at-now.firebaseapp.com",
-    projectId: "where-its-at-now",
-    storageBucket: "where-its-at-now.firebasestorage.app",
-    messagingSenderId: "1082729231123",
-    appId: "1:1082729231123:web:3f71893823701fdf3260e6"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  const functions = getFunctions(app);
-
-  const el = (id) => document.getElementById(id);
-  const showErr = (msg) => {
-    const e = el("errText");
-    e.style.display = "block";
-    e.textContent = msg;
-  };
-
-  // Device id (anonymous)
-  const DEVICE_KEY = "wt_device_id";
-  let deviceId = localStorage.getItem(DEVICE_KEY);
-  if (!deviceId) {
-    deviceId = crypto.randomUUID();
-    localStorage.setItem(DEVICE_KEY, deviceId);
-  }
-  el("devicePill").textContent = "Device: " + deviceId.slice(0, 8);
-
-  // Location
-  let myLoc = null;
-  let accuracyFeet = 0;
-
-  // Data
-  let halls = [];
-  let selectedHall = null;
-  let stages = [];
-  let globalReset = "02:00";
-
-  function escapeHtml(s) {
-    return (s ?? "").toString()
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  function haversineFeet(a, b) {
-    const Rm = 6371000;
-    const toRad = (d) => d * Math.PI / 180;
-    const dLat = toRad(b.lat - a.lat);
-    const dLon = toRad(b.lng - a.lng);
-    const lat1 = toRad(a.lat);
-    const lat2 = toRad(b.lat);
-    const s = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
-    const meters = 2 * Rm * Math.asin(Math.sqrt(s));
-    return meters * 3.28084;
-  }
-
-  function computeInside(hall) {
-    if (!myLoc) return { inside:false, distFeet:null };
-    if (!hall?.geo || typeof hall.geo.lat !== "number" || typeof hall.geo.lng !== "number") {
-      return { inside:false, distFeet:null };
-    }
-    const distFeet = haversineFeet({ lat: hall.geo.lat, lng: hall.geo.lng }, myLoc);
-    const inside = distFeet <= (Number(hall.radiusFeet || 0) + Math.max(0, accuracyFeet));
-    return { inside, distFeet };
-  }
-
-  function effectiveResetTimeLocal(hall) {
-    return (hall.resetMode === "override" && hall.resetTimeLocalOverride)
-      ? String(hall.resetTimeLocalOverride)
-      : String(globalReset || "02:00");
-  }
-
-  function dayKeyFromReset(resetTimeLocal) {
-    const now = new Date();
-    const [hh, mm] = String(resetTimeLocal || "02:00").split(":").map(x => parseInt(x,10));
-    const boundary = new Date(now);
-    boundary.setHours(hh, mm, 0, 0);
-    const day = new Date(now);
-    if (now.getTime() < boundary.getTime()) day.setDate(day.getDate() - 1);
-    const y = day.getFullYear();
-    const m = String(day.getMonth()+1).padStart(2,"0");
-    const d = String(day.getDate()).padStart(2,"0");
-    return `${y}-${m}-${d}`;
-  }
-
-  function fmt(ts) {
-    if (!ts) return "—";
-    const d = ts.toDate ? ts.toDate() : new Date(ts);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  }
-
-  async function loadGlobalConfig() {
-    try {
-      const cfg = await getDoc(doc(db, "config", "global"));
-      if (cfg.exists() && cfg.data()?.defaultResetTimeLocal) {
-        globalReset = String(cfg.data().defaultResetTimeLocal);
-      }
-    } catch (e) {
-      showErr("Config read issue:\n" + (e?.message || String(e)));
-    }
-  }
-
-  async function loadHalls() {
-    try {
-      const qs = await getDocs(query(collection(db, "halls"), where("enabled","==", true)));
-      halls = qs.docs.map(d => ({ id: d.id, ...d.data() }));
-      renderHallList();
-    } catch (e) {
-      showErr("Halls read issue:\n" + (e?.message || String(e)));
-    }
-  }
-
-  function renderHallList() {
-    const term = el("search").value.trim().toLowerCase();
-    const filtered = halls
-      .filter(h => !term || String(h.name||"").toLowerCase().includes(term))
-      .sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
-
-    el("halls").innerHTML = filtered.map(h => {
-      const { inside, distFeet } = computeInside(h);
-      const pill = myLoc
-        ? `<span class="pill">${inside ? "Inside" : "Outside"}${distFeet!=null ? " · " + Math.round(distFeet) + "ft" : ""}</span>`
-        : `<span class="pill">Location needed</span>`;
-
-      return `
-        <div class="card" style="padding:12px;">
-          <div style="display:flex;justify-content:space-between;gap:10px;">
-            <div>
-              <div style="font-weight:700;">${escapeHtml(h.name||"")}</div>
-              <div class="muted">${escapeHtml(h.address||"")}</div>
-              <div class="muted">Radius: ${Math.round(h.radiusFeet||0)} ft · Reset: ${escapeHtml(effectiveResetTimeLocal(h))}</div>
-            </div>
-            <div>${pill}</div>
+      <div class="card colRight">
+        <div class="detailHeader">
+          <div>
+            <div id="detailTitle" class="detailTitle">Select a hall</div>
+            <div id="detailAddr" class="detailAddr"></div>
           </div>
-          <div style="height:8px;"></div>
-          <button class="secondary" data-hall="${h.id}" style="width:100%;">Open</button>
+          <span class="pill" id="insidePill">Location not shared</span>
         </div>
-      `;
-    }).join("");
 
-    [...el("halls").querySelectorAll("button[data-hall]")].forEach(btn => {
-      btn.addEventListener("click", () => selectHall(btn.getAttribute("data-hall")));
-    });
-  }
+        <div id="stagesWrap" style="margin-top:10px; display:none;">
+          <div id="stageGrid" class="stageGrid"></div>
+          <div id="statusMsg" class="note">View only. Share location and be inside the radius to thumbs-up.</div>
+        </div>
+      </div>
+    </div>
+  </main>
 
-  async function selectHall(hallId) {
-    const hall = halls.find(h => h.id === hallId);
-    if (!hall) return;
-    selectedHall = hall;
+  <script type="module">
+    // ---------- Firebase imports (CDN) ----------
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import {
+      getFirestore, collection, doc, getDocs, query,
+      setDoc, serverTimestamp, increment
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    el("hallTitle").textContent = hall.name || "Hall";
-    el("hallMeta").textContent = hall.address || "";
-    el("statusMsg").textContent = "Loading stages…";
+    // ---------- Firebase config ----------
+    const firebaseConfig = {
+      apiKey: "AIzaSyAukrjIr-u3dKyCyk-0PTJVoQPcBf2a6-4",
+      authDomain: "where-its-at-now.firebaseapp.com",
+      projectId: "where-its-at-now",
+      storageBucket: "where-its-at-now.firebasestorage.app",
+      messagingSenderId: "1082729231123",
+      appId: "1:1082729231123:web:3f71893823701fdf3260e6"
+    };
 
-    const { inside, distFeet } = computeInside(hall);
-    el("insidePill").textContent = myLoc
-      ? (inside ? "Inside radius" : "Outside radius")
-      : "Location not shared";
-    if (distFeet != null) el("insidePill").textContent += ` · ${Math.round(distFeet)} ft`;
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
 
-    try {
-      const stageSnap = await getDocs(collection(db, "halls", hallId, "stages"));
-      stages = stageSnap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .filter(s => s.enabled !== false)
-        .sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0));
-    } catch (e) {
-      showErr("Stages read issue:\n" + (e?.message || String(e)));
-      stages = [];
+    // ---------- Helpers ----------
+    const el = (id) => document.getElementById(id);
+    const showErr = (msg) => { el("errBox").style.display="block"; el("errBox").textContent = msg; };
+    const clearErr = () => { el("errBox").style.display="none"; el("errBox").textContent=""; };
+
+    function feetBetween(a, b){
+      // Haversine -> meters -> feet
+      const R = 6371000;
+      const toRad = (x)=>x*Math.PI/180;
+      const dLat = toRad(b.lat - a.lat);
+      const dLng = toRad(b.lng - a.lng);
+      const lat1 = toRad(a.lat);
+      const lat2 = toRad(b.lat);
+      const s = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
+      const c = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+      const meters = R * c;
+      return meters * 3.28084;
     }
 
-    await renderStages();
-  }
+    // Reset logic (simple & stable)
+    // dayKey changes at hall's reset time (local)
+    function dayKeyFromReset(resetTimeHHMM){
+      // resetTimeHHMM like "02:00"
+      const [hh, mm] = resetTimeHHMM.split(":").map(Number);
+      const now = new Date();
+      const reset = new Date(now);
+      reset.setHours(hh, mm, 0, 0);
 
-  async function renderStages() {
-    if (!selectedHall) return;
-    const hallId = selectedHall.id;
-    const resetTime = effectiveResetTimeLocal(selectedHall);
-    const dayKey = dayKeyFromReset(resetTime);
+      // If now is BEFORE today's reset moment, we count as "yesterday's event day"
+      // so dayKey should be yesterday date (YYYY-MM-DD)
+      if (now < reset) reset.setDate(reset.getDate() - 1);
 
-    // read stageStats docs
-    const statDocs = await Promise.all(stages.map(async (s) => {
-      try {
-        const ref = doc(db, "halls", hallId, "days", dayKey, "stageStats", s.id);
-        const snap = await getDoc(ref);
-        const data = snap.exists() ? snap.data() : null;
-        return { stageId: s.id, count: data?.count || 0, lastVoteAt: data?.lastVoteAt || null };
-      } catch {
-        return { stageId: s.id, count: 0, lastVoteAt: null };
-      }
-    }));
-    const statByStage = Object.fromEntries(statDocs.map(x => [x.stageId, x]));
+      const y = reset.getFullYear();
+      const m = String(reset.getMonth()+1).padStart(2,"0");
+      const d = String(reset.getDate()).padStart(2,"0");
+      return `${y}-${m}-${d}`;
+    }
 
-    const { inside } = computeInside(selectedHall);
-    const canVote = !!myLoc && inside;
+    function effectiveResetTimeLocal(hall){
+      return (hall.resetTimeLocal || "02:00");
+    }
 
-    el("stages").innerHTML = stages.length
-      ? `<div class="stageGrid">` + stages.map(s => {
-          const st = statByStage[s.id] || { count:0, lastVoteAt:null };
-          return `
-            <div class="stageCard">
-              <div>
-                <div style="font-weight:700;">${escapeHtml(s.label||"")}</div>
-                <div class="muted">👍 ${st.count} · Last: ${escapeHtml(fmt(st.lastVoteAt))}</div>
-              </div>
-              <button data-stage="${s.id}" ${canVote ? "" : "disabled"} title="${canVote ? "" : "Must be inside radius to vote"}>👍</button>
-            </div>
-          `;
-        }).join("") + `</div>`
-      : `<div class="muted">No stages yet for this hall.</div>`;
+    // ---------- Device ID (anonymous, per device) ----------
+    const DEVICE_KEY = "wian_device_id";
+    let deviceId = localStorage.getItem(DEVICE_KEY);
+    if (!deviceId){
+      deviceId = Math.random().toString(16).slice(2,10);
+      localStorage.setItem(DEVICE_KEY, deviceId);
+    }
+    el("devicePill").textContent = `Device: ${deviceId}`;
 
-    [...el("stages").querySelectorAll("button[data-stage]")].forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const stageId = btn.getAttribute("data-stage");
-        await vote(stageId);
-      });
-    });
+    // ---------- App state ----------
+    let myLoc = null;
+    let myAccuracyFt = null;
 
-    el("statusMsg").textContent = canVote
-      ? "You are inside this hall radius. You can thumbs-up the current stage."
-      : "View only. Share location and be inside the radius to thumbs-up.";
-  }
+    let halls = [];
+    let filteredHalls = [];
+    let selectedHall = null;
 
-async function vote(stageId) {
-  if (!selectedHall) return;
-  if (!myLoc) { el("statusMsg").textContent = "Location required to vote."; return; }
+    // Stages used (editable later by code/admin tooling)
+    const DEFAULT_STAGES = [
+      { id:"chosson_tish_badeken", name:"Chosson\nTish &\nBadeken" },
+      { id:"chuppah",            name:"Chuppah" },
+      { id:"first_course",       name:"First\nCourse" },
+      { id:"first_dance",        name:"First\nDance" },
+      { id:"main_course",        name:"Main\nCourse" },
+      { id:"second_dance",       name:"Second\nDance" },
+      { id:"dessert",            name:"Dessert" },
+      { id:"benching_wrapup",    name:"Benching/Wrap-up" },
+    ];
 
-  el("statusMsg").textContent = "Submitting vote…";
-  try {
-    const resetTime = effectiveResetTimeLocal(selectedHall);
-    const dayKey = dayKeyFromReset(resetTime);
-
-    const statRef = doc(db, "halls", selectedHall.id, "days", dayKey, "stageStats", stageId);
-
-    await setDoc(statRef, {
-      count: increment(1),
-      lastVoteAt: serverTimestamp()
-    }, { merge: true });
-
-    el("statusMsg").textContent = "Vote recorded.";
-    await renderStages();
-    renderHallList();
-  } catch (e) {
-    showErr("Vote failed:\n" + (e?.message || String(e)));
-    el("statusMsg").textContent = "Vote failed.";
-  }
-}
-
-  el("btnLoc").addEventListener("click", () => {
-    el("geoText").textContent = "Requesting location…";
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        myLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        accuracyFeet = (pos.coords.accuracy || 0) * 3.28084;
-        el("geoText").textContent = `Location set · accuracy ~${Math.round(accuracyFeet)} ft`;
+    // ---------- Load halls ----------
+    async function loadHalls(){
+      clearErr();
+      try{
+        const qs = query(collection(db, "halls"));
+        const snap = await getDocs(qs);
+        halls = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+        applySearch();
+      }catch(e){
+        showErr("Halls read issue (likely Firestore rules):\n" + (e?.message || String(e)));
+        halls = [];
+        filteredHalls = [];
         renderHallList();
-        if (selectedHall) selectHall(selectedHall.id);
-      },
-      () => { el("geoText").textContent = "Location denied/unavailable (view only)"; },
-      { enableHighAccuracy: true, timeout: 12000 }
-    );
-  });
+      }
+    }
 
-  el("search").addEventListener("input", renderHallList);
+    function applySearch(){
+      const q = el("searchInput").value.trim().toLowerCase();
+      filteredHalls = halls.filter(h => (h.name || "").toLowerCase().includes(q));
+      renderHallList();
+      // keep selection if still exists
+      if (selectedHall){
+        const still = halls.find(h=>h.id===selectedHall.id);
+        if (!still){
+          selectedHall = null;
+          renderDetailsEmpty();
+        } else {
+          selectedHall = still;
+          renderDetailsSelected();
+        }
+      }
+    }
 
-  await loadGlobalConfig();
-  await loadHalls();
-</script>
+    function hallDistanceFeet(hall){
+      if (!myLoc) return null;
+
+      // accept hall.geo.{lat,lng} OR hall.lat/hall.lng
+      const lat = hall?.geo?.lat ?? hall?.lat;
+      const lng = hall?.geo?.lng ?? hall?.lng;
+
+      if (typeof lat !== "number" || typeof lng !== "number") return null;
+      return feetBetween(myLoc, {lat, lng});
+    }
+
+    function isInside(hall){
+      const dist = hallDistanceFeet(hall);
+      if (dist == null) return false;
+      const radius = Number(hall.radiusFeet ?? 800);
+      return dist <= radius;
+    }
+
+    // ---------- Render hall list ----------
+    function renderHallList(){
+      const box = el("hallsBox");
+      box.innerHTML = "";
+
+      if (!filteredHalls.length){
+        box.textContent = "No halls found.";
+        return;
+      }
+
+      filteredHalls.forEach(h => {
+        const dist = hallDistanceFeet(h);
+        const inside = (dist != null) ? isInside(h) : false;
+        const resetTime = effectiveResetTimeLocal(h);
+
+        const item = document.createElement("div");
+        item.className = "hallItem";
+
+        const titleRow = document.createElement("div");
+        titleRow.className = "hallTitle";
+
+        const left = document.createElement("div");
+        const name = document.createElement("div");
+        name.className = "hallName";
+        name.textContent = h.name || h.id;
+
+        const addr = document.createElement("div");
+        addr.className = "hallAddr";
+        addr.textContent = h.address || "";
+
+        const meta = document.createElement("div");
+        meta.className = "hallMeta";
+        meta.textContent = `Radius: ${Number(h.radiusFeet ?? 800)} ft · Reset: ${resetTime}`;
+
+        left.appendChild(name);
+        left.appendChild(addr);
+        left.appendChild(meta);
+
+        const right = document.createElement("div");
+        const pill = document.createElement("span");
+        pill.className = "pill";
+        if (!myLoc) pill.textContent = "Location needed";
+        else if (dist == null) pill.textContent = "No hall location set";
+        else pill.textContent = inside ? `Inside · ${Math.round(dist)}ft` : `Outside · ${Math.round(dist)}ft`;
+        right.appendChild(pill);
+
+        titleRow.appendChild(left);
+        titleRow.appendChild(right);
+
+        const btn = document.createElement("button");
+        btn.className = "openBtn";
+        btn.textContent = "Open";
+        btn.onclick = () => {
+          selectedHall = h;
+          renderDetailsSelected();
+        };
+
+        item.appendChild(titleRow);
+        item.appendChild(btn);
+
+        box.appendChild(item);
+      });
+    }
+
+    // ---------- Render details ----------
+    function renderDetailsEmpty(){
+      el("detailTitle").textContent = "Select a hall";
+      el("detailAddr").textContent = "";
+      el("insidePill").textContent = myLoc ? "No hall selected" : "Location not shared";
+      el("stagesWrap").style.display = "none";
+    }
+
+    async function renderDetailsSelected(){
+      if (!selectedHall){ renderDetailsEmpty(); return; }
+
+      el("detailTitle").textContent = selectedHall.name || selectedHall.id;
+      el("detailAddr").textContent = selectedHall.address || "";
+
+      const dist = hallDistanceFeet(selectedHall);
+      if (!myLoc) el("insidePill").textContent = "Location not shared";
+      else if (dist == null) el("insidePill").textContent = "Hall location not set";
+      else el("insidePill").textContent = isInside(selectedHall) ? `Inside radius · ${Math.round(dist)} ft` : `Outside radius · ${Math.round(dist)} ft`;
+
+      el("stagesWrap").style.display = "block";
+      await renderStages();
+      renderHallList(); // refresh pills
+    }
+
+    // ---------- Load stage stats + render ----------
+    async function getStageStatsMap(){
+      // We are using the same document path the vote() writes to:
+      // halls/{hallId}/days/{dayKey}/stageStats/{stageId}
+      const resetTime = effectiveResetTimeLocal(selectedHall);
+      const dayKey = dayKeyFromReset(resetTime);
+
+      const statsCol = collection(db, "halls", selectedHall.id, "days", dayKey, "stageStats");
+      const snap = await getDocs(statsCol);
+
+      const map = {};
+      snap.forEach(d => map[d.id] = d.data());
+      return { map, dayKey };
+    }
+
+    function formatTime(ts){
+      if (!ts) return "—";
+      try{
+        const d = ts.toDate ? ts.toDate() : new Date(ts);
+        return d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+      }catch{
+        return "—";
+      }
+    }
+
+    async function renderStages(){
+      const grid = el("stageGrid");
+      grid.innerHTML = "";
+
+      if (!selectedHall) return;
+
+      let stats = {};
+      let dayKey = null;
+
+      try{
+        const res = await getStageStatsMap();
+        stats = res.map;
+        dayKey = res.dayKey;
+      }catch(e){
+        // If reads fail, we can still render stages, but stats will show 0
+        showErr("Stage stats read issue:\n" + (e?.message || String(e)));
+      }
+
+      const inside = selectedHall ? (myLoc && isInside(selectedHall)) : false;
+      const canVote = !!inside;
+
+      // Event delegation: one handler avoids wrong-stage clicks
+      grid.onclick = (ev) => {
+        const b = ev.target.closest("button.voteBtn");
+        if (!b) return;
+        const stageId = b.dataset.stageId;
+        vote(stageId);
+      };
+
+      DEFAULT_STAGES.forEach(st => {
+        const s = stats[st.id] || {};
+        const count = Number(s.count ?? 0);
+        const last = s.lastVoteAt ? formatTime(s.lastVoteAt) : "—";
+
+        const card = document.createElement("div");
+        card.className = "stageCard";
+
+        const name = document.createElement("div");
+        name.className = "stageName";
+        name.textContent = st.name;
+
+        const statsLine = document.createElement("div");
+        statsLine.className = "stageStats";
+        statsLine.textContent = `👍 ${count} · Last: ${last}`;
+
+        const btn = document.createElement("button");
+        btn.className = "voteBtn";
+        btn.type = "button";
+        btn.dataset.stageId = st.id;
+
+        // 1 vote per stage per device per dayKey
+        const voteKey = `voted:${selectedHall.id}:${dayKey}:${st.id}`;
+        const already = localStorage.getItem(voteKey) === "1";
+
+        if (!canVote){
+          btn.disabled = true;
+          btn.textContent = "View only";
+        } else if (already){
+          btn.disabled = true;
+          btn.textContent = "Voted";
+        } else {
+          btn.disabled = false;
+          btn.textContent = "👍 Thumbs up";
+        }
+
+        card.appendChild(name);
+        card.appendChild(statsLine);
+        card.appendChild(btn);
+
+        grid.appendChild(card);
+      });
+
+      if (!myLoc){
+        el("statusMsg").textContent = "View only. Share location and be inside the radius to thumbs-up.";
+      } else if (!isInside(selectedHall)){
+        el("statusMsg").textContent = "Outside radius. You can view only.";
+      } else {
+        el("statusMsg").textContent = "You are inside this hall radius. You can thumbs-up the current stage.";
+      }
+    }
+
+    // ---------- Vote (direct Firestore write) ----------
+    async function vote(stageId){
+      if (!selectedHall) return;
+      if (!myLoc){ el("statusMsg").textContent = "Location required to vote."; return; }
+
+      const dist = hallDistanceFeet(selectedHall);
+      if (dist == null){ el("statusMsg").textContent = "Hall location not set. Admin must add geo."; return; }
+      if (!isInside(selectedHall)){ el("statusMsg").textContent = "Outside radius. View only."; return; }
+
+      const resetTime = effectiveResetTimeLocal(selectedHall);
+      const dayKey = dayKeyFromReset(resetTime);
+
+      const voteKey = `voted:${selectedHall.id}:${dayKey}:${stageId}`;
+      if (localStorage.getItem(voteKey) === "1"){
+        el("statusMsg").textContent = "Already voted on this stage.";
+        return;
+      }
+
+      el("statusMsg").textContent = "Submitting vote…";
+      clearErr();
+
+      try{
+        const statRef = doc(db, "halls", selectedHall.id, "days", dayKey, "stageStats", stageId);
+
+        await setDoc(statRef, {
+          count: increment(1),
+          lastVoteAt: serverTimestamp()
+        }, { merge: true });
+
+        localStorage.setItem(voteKey, "1");
+
+        el("statusMsg").textContent = "Vote recorded.";
+        await renderStages();
+        renderHallList();
+      }catch(e){
+        showErr("Vote failed:\n" + (e?.message || String(e)));
+        el("statusMsg").textContent = "Vote failed.";
+      }
+    }
+
+    // ---------- Location ----------
+    async function requestLocation(){
+      clearErr();
+      if (!navigator.geolocation){
+        showErr("Geolocation not supported on this device.");
+        return;
+      }
+
+      el("locLine").textContent = "Requesting location…";
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          myLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          myAccuracyFt = (pos.coords.accuracy || 0) * 3.28084;
+          el("locLine").textContent = `Location set · accuracy ~${Math.round(myAccuracyFt)} ft`;
+          renderHallList();
+          renderDetailsSelected();
+        },
+        (err) => {
+          showErr("Location error:\n" + (err?.message || String(err)));
+          el("locLine").textContent = "Location: not granted";
+          myLoc = null;
+          myAccuracyFt = null;
+          renderHallList();
+          renderDetailsSelected();
+        },
+        { enableHighAccuracy:true, timeout:10000, maximumAge:0 }
+      );
+    }
+
+    // ---------- Wire up ----------
+    el("locBtn").onclick = requestLocation;
+    el("searchInput").addEventListener("input", applySearch);
+
+    // ---------- Start ----------
+    await loadHalls();
+    renderDetailsEmpty();
+  </script>
 </body>
 </html>
-
