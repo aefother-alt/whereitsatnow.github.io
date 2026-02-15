@@ -343,21 +343,30 @@
       : "View only. Share location and be inside the radius to thumbs-up.";
   }
 
-  async function vote(stageId) {
-    if (!selectedHall) return;
-    if (!myLoc) { el("statusMsg").textContent = "Location required to vote."; return; }
+async function vote(stageId) {
+  if (!selectedHall) return;
+  if (!myLoc) { el("statusMsg").textContent = "Location required to vote."; return; }
 
-    el("statusMsg").textContent = "Submitting vote…";
-    try {
-      await castVote({ hallId: selectedHall.id, stageId, deviceId, userLoc: myLoc, accuracyFeet });
-      el("statusMsg").textContent = "Vote recorded.";
-      await renderStages();
-      renderHallList();
-    } catch (e) {
-      showErr("Vote failed (functions not deployed yet):\n" + (e?.message || String(e)));
-      el("statusMsg").textContent = "Vote failed.";
-    }
+  el("statusMsg").textContent = "Submitting vote…";
+  try {
+    const resetTime = effectiveResetTimeLocal(selectedHall);
+    const dayKey = dayKeyFromReset(resetTime);
+
+    const statRef = doc(db, "halls", selectedHall.id, "days", dayKey, "stageStats", stageId);
+
+    await setDoc(statRef, {
+      count: increment(1),
+      lastVoteAt: serverTimestamp()
+    }, { merge: true });
+
+    el("statusMsg").textContent = "Vote recorded.";
+    await renderStages();
+    renderHallList();
+  } catch (e) {
+    showErr("Vote failed:\n" + (e?.message || String(e)));
+    el("statusMsg").textContent = "Vote failed.";
   }
+}
 
   el("btnLoc").addEventListener("click", () => {
     el("geoText").textContent = "Requesting location…";
