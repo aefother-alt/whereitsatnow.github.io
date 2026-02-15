@@ -4,9 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Where It’s At Now</title>
+
   <style>
     body { font-family: system-ui, Arial; margin:0; background:#fafafa; }
-    header { position:sticky; top:0; background:#fff; border-bottom:1px solid #e6e6e6; padding:12px 16px; }
+    header { position:sticky; top:0; background:#fff; border-bottom:1px solid #e6e6e6; padding:12px 16px; z-index:5; }
     .wrap { max-width: 980px; margin:0 auto; padding:16px; }
     .row { display:flex; gap:12px; flex-wrap:wrap; }
     .card { background:#fff; border:1px solid #e6e6e6; border-radius:14px; padding:14px; }
@@ -17,34 +18,21 @@
     .pill { display:inline-block; padding:4px 10px; border:1px solid #ddd; border-radius:999px; font-size:12px; }
     .muted { color:#666; font-size:13px; }
     .list { display:grid; gap:10px; }
-    .stage { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px; border:1px solid #eee; border-radius:12px; }
+    .stage { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px; border:1px solid #eee; border-radius:12px; background:#fff; }
     .error { color:#b00020; font-size:13px; white-space:pre-wrap; }
+
+    /* ✅ Stage layout fix */
+    .stageGrid { display:flex; flex-wrap:wrap; gap:10px; }
+    .stageCard { flex: 0 1 170px; max-width: 190px; }
+    @media (max-width: 700px) {
+      .stageGrid { flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:6px; }
+      .stageCard { flex: 0 0 170px; }
+    }
   </style>
 </head>
+
 <body>
 <header>
-  .stageGrid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.stageCard {
-  flex: 0 1 160px;      /* wrap nicely */
-  max-width: 180px;
-}
-
-@media (max-width: 700px) {
-  .stageGrid {
-    flex-wrap: nowrap;   /* on phones, use scroll */
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 6px;
-  }
-  .stageCard {
-    flex: 0 0 160px;     /* fixed width cards */
-  }
-}
   <div class="row" style="align-items:center; justify-content:space-between;">
     <div>
       <div style="font-weight:700;">Where It’s At Now</div>
@@ -87,7 +75,7 @@
       </div>
 
       <div style="height:12px;"></div>
-      <div id="stages" class="list"></div>
+      <div id="stages"></div>
 
       <div class="muted" id="statusMsg" style="margin-top:10px;"></div>
     </div>
@@ -99,7 +87,7 @@
   import { getFirestore, collection, doc, getDocs, getDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
   import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js";
 
-  // ✅ YOUR FIREBASE CONFIG (CDN / GITHUB PAGES FRIENDLY)
+  // ✅ Your Firebase config
   const firebaseConfig = {
     apiKey: "AIzaSyAukrjIr-u3dKyCyk-0PTJVoQPcBf2a6-4",
     authDomain: "where-its-at-now.firebaseapp.com",
@@ -121,7 +109,6 @@
     e.textContent = msg;
   };
 
-  // Anonymous per-device id
   const DEVICE_KEY = "wt_device_id";
   let deviceId = localStorage.getItem(DEVICE_KEY);
   if (!deviceId) {
@@ -130,13 +117,13 @@
   }
   el("devicePill").textContent = "Device: " + deviceId.slice(0, 8);
 
-  let myLoc = null; // {lat,lng}
+  let myLoc = null;
   let accuracyFeet = 0;
 
   let halls = [];
   let selectedHall = null;
   let stages = [];
-  let globalReset = "02:00"; // fallback
+  let globalReset = "02:00";
 
   function haversineFeet(a, b) {
     const Rm = 6371000;
@@ -190,7 +177,6 @@
         globalReset = String(cfg.data().defaultResetTimeLocal);
       }
     } catch (e) {
-      // If rules block this read, you'll see it here
       showErr("Config read issue:\n" + (e?.message || String(e)));
     }
   }
@@ -201,7 +187,7 @@
       halls = qs.docs.map(d => ({ id: d.id, ...d.data() }));
       renderHallList();
     } catch (e) {
-      showErr("Halls read issue (likely Firestore rules):\n" + (e?.message || String(e)));
+      showErr("Halls read issue:\n" + (e?.message || String(e)));
     }
   }
 
@@ -279,7 +265,7 @@
         const snap = await getDoc(ref);
         const data = snap.exists() ? snap.data() : null;
         return { stageId: s.id, count: data?.count || 0, lastVoteAt: data?.lastVoteAt || null };
-      } catch (e) {
+      } catch {
         return { stageId: s.id, count: 0, lastVoteAt: null };
       }
     }));
@@ -288,18 +274,20 @@
     const { inside } = computeInside(selectedHall);
     const canVote = !!myLoc && inside;
 
-    el("stages").innerHTML = stages.length ? stages.map(s => {
-      const st = statByStage[s.id] || { count:0, lastVoteAt:null };
-      return `
-        <div class="stage">
-          <div>
-            <div style="font-weight:700;">${escapeHtml(s.label||"")}</div>
-            <div class="muted">👍 ${st.count} · Last: ${escapeHtml(fmt(st.lastVoteAt))}</div>
-          </div>
-          <button data-stage="${s.id}" ${canVote ? "" : "disabled"} title="${canVote ? "" : "Must be inside radius to vote"}>👍</button>
-        </div>
-      `;
-    }).join("") : `<div class="muted">No stages yet for this hall.</div>`;
+    el("stages").innerHTML = stages.length
+      ? `<div class="stageGrid">` + stages.map(s => {
+          const st = statByStage[s.id] || { count:0, lastVoteAt:null };
+          return `
+            <div class="stage stageCard">
+              <div>
+                <div style="font-weight:700;">${escapeHtml(s.label||"")}</div>
+                <div class="muted">👍 ${st.count} · Last: ${escapeHtml(fmt(st.lastVoteAt))}</div>
+              </div>
+              <button data-stage="${s.id}" ${canVote ? "" : "disabled"} title="${canVote ? "" : "Must be inside radius to vote"}>👍</button>
+            </div>
+          `;
+        }).join("") + `</div>`
+      : `<div class="muted">No stages yet for this hall.</div>`;
 
     [...el("stages").querySelectorAll("button[data-stage]")].forEach(btn => {
       btn.addEventListener("click", async () => {
@@ -324,7 +312,7 @@
       await renderStages();
       renderHallList();
     } catch (e) {
-      showErr("Vote failed (functions not deployed yet or blocked):\n" + (e?.message || String(e)));
+      showErr("Vote failed (functions not deployed yet):\n" + (e?.message || String(e)));
       el("statusMsg").textContent = "Vote failed.";
     }
   }
@@ -355,7 +343,6 @@
       .replaceAll("'", "&#039;");
   }
 
-  // Load data
   await loadGlobalConfig();
   await loadHalls();
 </script>
