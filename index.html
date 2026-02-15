@@ -151,8 +151,8 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
     import {
-      getFirestore, collection, doc, getDocs, getDoc, query, where,
-      setDoc, serverTimestamp, increment
+      getFirestore, collection, doc, getDocs, query, where,
+      setDoc, serverTimestamp, increment, onSnapshot
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     // Firebase config
@@ -190,6 +190,11 @@
     let filteredHalls = [];
     let selectedHall = null;
 
+    // LIVE stats listener state
+    let unsubStageStats = null;
+    let liveStats = {};
+    let liveDayKey = null;
+
     // Default stages (used if a hall has no stages subcollection yet)
     const DEFAULT_STAGES = [
       { id:"chosson_tish_badeken", name:"Chosson Tish\n& Badeken" },
@@ -216,7 +221,7 @@
       return meters * 3.28084;
     }
 
-    // === Reset-day key based on hall reset time ===
+    // Reset-day key based on hall reset time
     function dayKeyFromReset(resetTimeHHMM){
       const [hh, mm] = String(resetTimeHHMM || "02:00").split(":").map(Number);
       const H = Number.isFinite(hh) ? hh : 2;
@@ -240,10 +245,8 @@
       return (hall.resetTimeLocal || "02:00");
     }
 
-    // === IMPORTANT: radiusFeet standard ===
+    // radiusFeet standard with fallback
     function hallRadiusFeet(hall){
-      // standard: radiusFeet
-      // fallback: radiusFt (older docs)
       const r = hall?.radiusFeet ?? hall?.radiusFt ?? 800;
       const n = Number(r);
       return Number.isFinite(n) ? n : 800;
@@ -263,21 +266,36 @@
       return feetBetween(myLoc, p);
     }
 
-    function isInside(hall){
-      const dist = hallDistanceFeet(hall);
-      if (dist == null) return false;
-      const radius = hallRadiusFeet(hall);
-      return dist <= radius;
+    // LIVE listener for stage stats
+    function startStageStatsListener(){
+      if (unsubStageStats) { unsubStageStats(); unsubStageStats = null; }
+      liveStats = {};
+      liveDayKey = null;
+
+      if (!selectedHall) return;
+
+      const resetTime = effectiveResetTimeLocal(selectedHall);
+      const dayKey = dayKeyFromReset(resetTime);
+      liveDayKey = dayKey;
+
+      const statsCol = collection(db, "halls", selectedHall.id, "days", dayKey, "stageStats");
+
+      unsubStageStats = onSnapshot(statsCol, (snap) => {
+        const map = {};
+        snap.forEach(d => map[d.id] = d.data());
+        liveStats = map;
+        // update UI immediately when any device votes
+        renderStages();
+      }, (err) => {
+        showErr("Stage stats live error:\n" + (err?.message || String(err)));
+      });
     }
 
-    // Load halls (FIX: only enabled == true)
+    // Load halls (enabled only)
     async function loadHalls(){
       clearErr();
       try{
-        const qs = query(
-          collection(db, "halls"),
-          where("enabled", "==", true)
-        );
+        const qs = query(collection(db, "halls"), where("enabled", "==", true));
         const snap = await getDocs(qs);
         halls = snap.docs.map(d => ({ id:d.id, ...d.data() }));
         applySearch();
@@ -298,6 +316,7 @@
         const still = halls.find(h=>h.id===selectedHall.id);
         if (!still){
           selectedHall = null;
+          stopLive();
           renderDetailsEmpty();
         } else {
           selectedHall = still;
@@ -306,7 +325,13 @@
       }
     }
 
-    // Render hall list (FIX: halls visible even outside radius; Open always works)
+    function stopLive(){
+      if (unsubStageStats) { unsubStageStats(); unsubStageStats = null; }
+      liveStats = {};
+      liveDayKey = null;
+    }
+
+    // Render hall list (always visible, open always works)
     function renderHallList(){
       const box = el("hallsBox");
       box.innerHTML = "";
@@ -390,28 +415,23 @@
 
       const dist = hallDistanceFeet(selectedHall);
       const radius = hallRadiusFeet(selectedHall);
+      const inside = !!myLoc && (dist != null) && (dist <= radius);
 
       if (!myLoc) el("insidePill").textContent = "Location not shared";
       else if (dist == null) el("insidePill").textContent = "Hall location not set";
-      else el("insidePill").textContent = (dist <= radius)
+      else el("insidePill").textContent = inside
         ? `Inside radius · ${Math.round(dist)} ft`
         : `Outside radius · ${Math.round(dist)} ft`;
 
       el("stagesWrap").style.display = "block";
-      await renderStages();
+
+      // start live stats for this hall/day
+      startStageStatsListener();
+
+      // initial render (will update again from live listener)
+      renderStages();
+
       renderHallList();
-    }
-
-    async function getStageStatsMap(){
-      const resetTime = effectiveResetTimeLocal(selectedHall);
-      const dayKey = dayKeyFromReset(resetTime);
-
-      const statsCol = collection(db, "halls", selectedHall.id, "days", dayKey, "stageStats");
-      const snap = await getDocs(statsCol);
-
-      const map = {};
-      snap.forEach(d => map[d.id] = d.data());
-      return { map, dayKey };
     }
 
     function formatTime(ts){
@@ -424,30 +444,20 @@
       }
     }
 
-    // Render stages + delegate click (fix “next stage” bug)
-    async function renderStages(){
+    // Render stages (uses LIVE stats)
+    function renderStages(){
       const grid = el("stageGrid");
       grid.innerHTML = "";
-
       if (!selectedHall) return;
-
-      let stats = {};
-      let dayKey = dayKeyFromReset(effectiveResetTimeLocal(selectedHall));
-
-      try{
-        const res = await getStageStatsMap();
-        stats = res.map;
-        dayKey = res.dayKey;
-      }catch(e){
-        // keep UI usable even if stats blocked
-        showErr("Stage stats read issue:\n" + (e?.message || String(e)));
-      }
 
       const dist = hallDistanceFeet(selectedHall);
       const radius = hallRadiusFeet(selectedHall);
       const inside = !!myLoc && (dist != null) && (dist <= radius);
 
-      // event delegation
+      const dayKey = liveDayKey || dayKeyFromReset(effectiveResetTimeLocal(selectedHall));
+      const stats = liveStats || {};
+
+      // delegate clicks
       grid.onclick = (e) => {
         const b = e.target.closest("button.voteBtn");
         if (!b) return;
@@ -475,7 +485,6 @@
         btn.type = "button";
         btn.dataset.stageId = st.id;
 
-        // 1 vote per device per stage per reset-day
         const voteKey = `voted:${selectedHall.id}:${dayKey}:${st.id}`;
         const already = localStorage.getItem(voteKey) === "1";
 
@@ -507,7 +516,7 @@
       }
     }
 
-    // Vote writes directly to stageStats (your working approach)
+    // Vote writes to stageStats; live listener will update everyone's counts
     async function vote(stageId) {
       if (!selectedHall) return;
       if (!myLoc) { el("statusMsg").textContent = "Location required to vote."; return; }
@@ -520,6 +529,7 @@
 
       const resetTime = effectiveResetTimeLocal(selectedHall);
       const dayKey = dayKeyFromReset(resetTime);
+      liveDayKey = dayKey; // keep consistent
 
       const voteKey = `voted:${selectedHall.id}:${dayKey}:${stageId}`;
       if (localStorage.getItem(voteKey) === "1"){
@@ -541,8 +551,8 @@
         localStorage.setItem(voteKey, "1");
 
         el("statusMsg").textContent = "Vote recorded.";
-        await renderStages();
-        renderHallList();
+        // No need to manually re-fetch: onSnapshot will update shortly
+        renderStages();
       } catch (e) {
         showErr("Vote failed:\n" + (e?.message || String(e)));
         el("statusMsg").textContent = "Vote failed.";
@@ -564,7 +574,12 @@
           myAccuracyFt = (pos.coords.accuracy || 0) * 3.28084;
           el("locLine").textContent = `Location set · accuracy ~${Math.round(myAccuracyFt)} ft`;
           renderHallList();
-          renderDetailsSelected();
+
+          if (selectedHall){
+            // if dayKey might change because resetTime changed, restart listener
+            startStageStatsListener();
+            renderDetailsSelected();
+          }
         },
         (err) => {
           showErr("Location error:\n" + (err?.message || String(err)));
@@ -572,6 +587,7 @@
           myLoc = null;
           myAccuracyFt = null;
           renderHallList();
+          stopLive();
           renderDetailsSelected();
         },
         { enableHighAccuracy:true, timeout:10000, maximumAge:0 }
