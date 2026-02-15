@@ -1,1 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Where It’s At Now</title>
+
+  <style>
+    body { font-family: system-ui, Arial; margin:0; background:#fafafa; }
+    header { position:sticky; top:0; background:#fff; border-bottom:1px solid #e6e6e6; padding:12px 16px; z-index:5; }
+    .wrap { max-width: 980px; margin:0 auto; padding:16px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    .card { background:#fff; border:1px solid #e6e6e6; border-radius:14px; padding:14px; }
+    input, button { padding:10px; border-radius:10px; border:1px solid #d7d7d7; }
+    button { cursor:pointer; background:#111; color:#fff; border:none; }
+    button.secondary { background:#eee; color:#111; border:1px solid #ddd; }
+    button:disabled { opacity:0.5; cursor:not-allowed; }
+    .pill { display:inline-block; padding:4px 10px; border:1px solid #ddd; border-radius:999px; font-size:12px; white-space:nowrap; }
+    .muted { color:#666; font-size:13px; }
+    .list { display:grid; gap:10px; }
+    .error { color:#b00020; font-size:13px; white-space:pre-wrap; }
+
+    /* Stage layout */
+    #stages { max-width:100%; overflow:hidden; }
+    .stageGrid {
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      align-items:stretch;
+      max-width:100%;
+    }
+    .stageCard {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:10px;
+      border:1px solid #eee;
+      border-radius:12px;
+      background:#fff;
+      width:170px;
+      flex: 0 0 170px;
+      max-width:170px;
+    }
+
+    @media (max-width: 700px) {
+      .stageGrid {
+        flex-wrap:nowrap;
+        overflow-x:auto;
+        -webkit-overflow-scrolling:touch;
+        padding-bottom:6px;
+      }
+      .stageCard { width:170px; flex:0 0 170px; }
+    }
+  </style>
+</head>
+
+<body>
+<header>
+  <div class="row" style="align-items:center; justify-content:space-between;">
+    <div>
+      <div style="font-weight:700;">Where It’s At Now</div>
+      <div class="muted" id="geoText">Location: not requested</div>
+      <div class="error" id="errText" style="display:none;"></div>
+    </div>
+    <div class="row" style="align-items:center;">
+      <button id="btnLoc" class="secondary">Use my location</button>
+      <span class="pill" id="devicePill"></span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <div class="row" style="align-items:center; justify-content:space-between;">
+      <div>
+        <div style="font-weight:700;">Search halls</div>
+        <div class="muted">Outside radius = view only. Inside radius = can thumbs-up.</div>
+      </div>
+      <input id="search" placeholder="Search by hall name" style="flex:1; min-width:220px;" />
+    </div>
+  </div>
+
+  <div style="height:12px;"></div>
+
+  <div class="row">
+    <div class="card" style="flex:1; min-width:320px;">
+      <div style="font-weight:700; margin-bottom:10px;">Halls</div>
+      <div id="halls" class="list"></div>
+    </div>
+
+    <div class="card" style="flex:1; min-width:320px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div>
+          <div style="font-weight:700;" id="hallTitle">Select a hall</div>
+          <div class="muted" id="hallMeta"></div>
+        </div>
+        <span class="pill" id="insidePill">—</span>
+      </div>
+
+      <div style="height:12px;"></div>
+      <div id="stages"></div>
+
+      <div class="muted" id="statusMsg" style="margin-top:10px;"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+  import {
+    getFirestore, collection, doc, getDocs, getDoc, query, where
+  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js";
+
+  // Your Firebase config
+  const firebaseConfig = {
+    apiKey: "AIzaSyAukrjIr-u3dKyCyk-0PTJVoQPcBf2a6-4",
+    authDomain: "where-its-at-now.firebaseapp.com",
+    projectId: "where-its-at-now",
+    storageBucket: "where-its-at-now.firebasestorage.app",
+    messagingSenderId: "1082729231123",
+    appId: "1:1082729231123:web:3f71893823701fdf3260e6"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const functions = getFunctions(app);
+  const castVote = httpsCallable(functions, "castVote"); // will error until functions deployed
+
+  const el = (id) => document.getElementById(id);
+  const showErr = (msg) => {
+    const e = el("errText");
+    e.style.display = "block";
+    e.textContent = msg;
+  };
+
+  // Device id (anonymous)
+  const DEVICE_KEY = "wt_device_id";
+  let deviceId = localStorage.getItem(DEVICE_KEY);
+  if (!deviceId) {
+    deviceId = crypto.randomUUID();
+    localStorage.setItem(DEVICE_KEY, deviceId);
+  }
+  el("devicePill").textContent = "Device: " + deviceId.slice(0, 8);
+
+  // Location
+  let myLoc = null;
+  let accuracyFeet = 0;
+
+  // Data
+  let halls = [];
+  let selectedHall = null;
+  let stages = [];
+  let globalReset = "02:00";
+
+  function escapeHtml(s) {
+    return (s ?? "").toString()
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function haversineFeet(a, b) {
+    const Rm = 6371000;
+    const toRad = (d) => d * Math.PI / 180;
+    const dLat = toRad(b.lat - a.lat);
+    const dLon = toRad(b.lng - a.lng);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+    const s = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+    const meters = 2 * Rm * Math.asin(Math.sqrt(s));
+    return meters * 3.28084;
+  }
+
+  function computeInside(hall) {
+    if (!myLoc) return { inside:false, distFeet:null };
+    if (!hall?.geo || typeof hall.geo.lat !== "number" || typeof hall.geo.lng !== "number") {
+      return { inside:false, distFeet:null };
+    }
+    const distFeet = haversineFeet({ lat: hall.geo.lat, lng: hall.geo.lng }, myLoc);
+    const inside = distFeet <= (Number(hall.radiusFeet || 0) + Math.max(0, accuracyFeet));
+    return { inside, distFeet };
+  }
+
+  function effectiveResetTimeLocal(hall) {
+    return (hall.resetMode === "override" && hall.resetTimeLocalOverride)
+      ? String(hall.resetTimeLocalOverride)
+      : String(globalReset || "02:00");
+  }
+
+  function dayKeyFromReset(resetTimeLocal) {
+    const now = new Date();
+    const [hh, mm] = String(resetTimeLocal || "02:00").split(":").map(x => parseInt(x,10));
+    const boundary = new Date(now);
+    boundary.setHours(hh, mm, 0, 0);
+    const day = new Date(now);
+    if (now.getTime() < boundary.getTime()) day.setDate(day.getDate() - 1);
+    const y = day.getFullYear();
+    const m = String(day.getMonth()+1).padStart(2,"0");
+    const d = String(day.getDate()).padStart(2,"0");
+    return `${y}-${m}-${d}`;
+  }
+
+  function fmt(ts) {
+    if (!ts) return "—";
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  async function loadGlobalConfig() {
+    try {
+      const cfg = await getDoc(doc(db, "config", "global"));
+      if (cfg.exists() && cfg.data()?.defaultResetTimeLocal) {
+        globalReset = String(cfg.data().defaultResetTimeLocal);
+      }
+    } catch (e) {
+      showErr("Config read issue:\n" + (e?.message || String(e)));
+    }
+  }
+
+  async function loadHalls() {
+    try {
+      const qs = await getDocs(query(collection(db, "halls"), where("enabled","==", true)));
+      halls = qs.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderHallList();
+    } catch (e) {
+      showErr("Halls read issue:\n" + (e?.message || String(e)));
+    }
+  }
+
+  function renderHallList() {
+    const term = el("search").value.trim().toLowerCase();
+    const filtered = halls
+      .filter(h => !term || String(h.name||"").toLowerCase().includes(term))
+      .sort((a,b) => String(a.name||"").localeCompare(String(b.name||"")));
+
+    el("halls").innerHTML = filtered.map(h => {
+      const { inside, distFeet } = computeInside(h);
+      const pill = myLoc
+        ? `<span class="pill">${inside ? "Inside" : "Outside"}${distFeet!=null ? " · " + Math.round(distFeet) + "ft" : ""}</span>`
+        : `<span class="pill">Location needed</span>`;
+
+      return `
+        <div class="card" style="padding:12px;">
+          <div style="display:flex;justify-content:space-between;gap:10px;">
+            <div>
+              <div style="font-weight:700;">${escapeHtml(h.name||"")}</div>
+              <div class="muted">${escapeHtml(h.address||"")}</div>
+              <div class="muted">Radius: ${Math.round(h.radiusFeet||0)} ft · Reset: ${escapeHtml(effectiveResetTimeLocal(h))}</div>
+            </div>
+            <div>${pill}</div>
+          </div>
+          <div style="height:8px;"></div>
+          <button class="secondary" data-hall="${h.id}" style="width:100%;">Open</button>
+        </div>
+      `;
+    }).join("");
+
+    [...el("halls").querySelectorAll("button[data-hall]")].forEach(btn => {
+      btn.addEventListener("click", () => selectHall(btn.getAttribute("data-hall")));
+    });
+  }
+
+  async function selectHall(hallId) {
+    const hall = halls.find(h => h.id === hallId);
+    if (!hall) return;
+    selectedHall = hall;
+
+    el("hallTitle").textContent = hall.name || "Hall";
+    el("hallMeta").textContent = hall.address || "";
+    el("statusMsg").textContent = "Loading stages…";
+
+    const { inside, distFeet } = computeInside(hall);
+    el("insidePill").textContent = myLoc
+      ? (inside ? "Inside radius" : "Outside radius")
+      : "Location not shared";
+    if (distFeet != null) el("insidePill").textContent += ` · ${Math.round(distFeet)} ft`;
+
+    try {
+      const stageSnap = await getDocs(collection(db, "halls", hallId, "stages"));
+      stages = stageSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(s => s.enabled !== false)
+        .sort((a,b) => (a.sortOrder||0) - (b.sortOrder||0));
+    } catch (e) {
+      showErr("Stages read issue:\n" + (e?.message || String(e)));
+      stages = [];
+    }
+
+    await renderStages();
+  }
+
+  async function renderStages() {
+    if (!selectedHall) return;
+    const hallId = selectedHall.id;
+    const resetTime = effectiveResetTimeLocal(selectedHall);
+    const dayKey = dayKeyFromReset(resetTime);
+
+    // read stageStats docs
+    const statDocs = await Promise.all(stages.map(async (s) => {
+      try {
+        const ref = doc(db, "halls", hallId, "days", dayKey, "stageStats", s.id);
+        const snap = await getDoc(ref);
+        const data = snap.exists() ? snap.data() : null;
+        return { stageId: s.id, count: data?.count || 0, lastVoteAt: data?.lastVoteAt || null };
+      } catch {
+        return { stageId: s.id, count: 0, lastVoteAt: null };
+      }
+    }));
+    const statByStage = Object.fromEntries(statDocs.map(x => [x.stageId, x]));
+
+    const { inside } = computeInside(selectedHall);
+    const canVote = !!myLoc && inside;
+
+    el("stages").innerHTML = stages.length
+      ? `<div class="stageGrid">` + stages.map(s => {
+          const st = statByStage[s.id] || { count:0, lastVoteAt:null };
+          return `
+            <div class="stageCard">
+              <div>
+                <div style="font-weight:700;">${escapeHtml(s.label||"")}</div>
+                <div class="muted">👍 ${st.count} · Last: ${escapeHtml(fmt(st.lastVoteAt))}</div>
+              </div>
+              <button data-stage="${s.id}" ${canVote ? "" : "disabled"} title="${canVote ? "" : "Must be inside radius to vote"}>👍</button>
+            </div>
+          `;
+        }).join("") + `</div>`
+      : `<div class="muted">No stages yet for this hall.</div>`;
+
+    [...el("stages").querySelectorAll("button[data-stage]")].forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const stageId = btn.getAttribute("data-stage");
+        await vote(stageId);
+      });
+    });
+
+    el("statusMsg").textContent = canVote
+      ? "You are inside this hall radius. You can thumbs-up the current stage."
+      : "View only. Share location and be inside the radius to thumbs-up.";
+  }
+
+  async function vote(stageId) {
+    if (!selectedHall) return;
+    if (!myLoc) { el("statusMsg").textContent = "Location required to vote."; return; }
+
+    el("statusMsg").textContent = "Submitting vote…";
+    try {
+      await castVote({ hallId: selectedHall.id, stageId, deviceId, userLoc: myLoc, accuracyFeet });
+      el("statusMsg").textContent = "Vote recorded.";
+      await renderStages();
+      renderHallList();
+    } catch (e) {
+      showErr("Vote failed (functions not deployed yet):\n" + (e?.message || String(e)));
+      el("statusMsg").textContent = "Vote failed.";
+    }
+  }
+
+  el("btnLoc").addEventListener("click", () => {
+    el("geoText").textContent = "Requesting location…";
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        myLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        accuracyFeet = (pos.coords.accuracy || 0) * 3.28084;
+        el("geoText").textContent = `Location set · accuracy ~${Math.round(accuracyFeet)} ft`;
+        renderHallList();
+        if (selectedHall) selectHall(selectedHall.id);
+      },
+      () => { el("geoText").textContent = "Location denied/unavailable (view only)"; },
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
+  });
+
+  el("search").addEventListener("input", renderHallList);
+
+  await loadGlobalConfig();
+  await loadHalls();
+</script>
+</body>
+</html>
 
