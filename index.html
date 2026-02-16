@@ -87,6 +87,31 @@
     .note{ color:var(--muted); margin-top:10px; }
     .error{ color:#b00020; white-space:pre-wrap; margin-top:8px; }
 
+    /* Inline open panel (between halls) */
+    .inlineDetail{
+      margin-top:12px;
+      border-top:1px solid #eee;
+      padding-top:12px;
+    }
+    .inlineHdr{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+      margin-bottom:8px;
+    }
+    .inlineTitle{
+      font-weight:900;
+      font-size:18px;
+      line-height:1.1;
+      margin:0;
+    }
+    .inlineAddr{
+      color:var(--muted);
+      margin-top:2px;
+      font-size:13px;
+    }
+
     @media (max-width:700px){
       h1{ font-size:22px; }
       .detailTitle{ font-size:20px; }
@@ -125,6 +150,12 @@
       </div>
     </div>
 
+    <!-- Admin how-to / instructions box -->
+    <div id="adminBox" class="card" style="margin-bottom:12px; display:none;">
+      <h2 style="margin:0 0 6px 0;">How to use this site</h2>
+      <div id="adminText" class="sub" style="white-space:pre-wrap;"></div>
+    </div>
+
     <div class="row">
       <div class="card colLeft">
         <h2>Halls</h2>
@@ -151,7 +182,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
     import {
-      getFirestore, collection, doc, getDocs, query, where,
+      getFirestore, collection, doc, getDoc, getDocs, query, where,
       setDoc, serverTimestamp, increment, onSnapshot
     } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
@@ -181,6 +212,43 @@
       localStorage.setItem(DEVICE_KEY, deviceId);
     }
     el("devicePill").textContent = `Device: ${deviceId}`;
+
+    // Global config
+    let globalCfg = {
+      defaultResetTimeLocal: "02:00",
+      adminText: ""
+    };
+
+    async function loadGlobalConfig(){
+      clearErr();
+      try{
+        const snap = await getDoc(doc(db, "config", "global"));
+        if (snap.exists()){
+          const d = snap.data() || {};
+          if (typeof d.defaultResetTimeLocal === "string" && d.defaultResetTimeLocal.trim()){
+            globalCfg.defaultResetTimeLocal = d.defaultResetTimeLocal.trim();
+          }
+          // Admin instructions text (you can store as adminText in config/global)
+          if (typeof d.adminText === "string" && d.adminText.trim()){
+            globalCfg.adminText = d.adminText;
+          } else if (typeof d.howToText === "string" && d.howToText.trim()){
+            // optional alternate field name
+            globalCfg.adminText = d.howToText;
+          }
+        }
+      }catch(e){
+        // Not fatal (site still works)
+        showErr("Config read issue:\n" + (e?.message || String(e)));
+      }
+
+      const txt = (globalCfg.adminText || "").trim();
+      if (txt){
+        el("adminText").textContent = txt;
+        el("adminBox").style.display = "block";
+      } else {
+        el("adminBox").style.display = "none";
+      }
+    }
 
     // State
     let myLoc = null;
@@ -223,7 +291,7 @@
 
     // Reset-day key based on hall reset time
     function dayKeyFromReset(resetTimeHHMM){
-      const [hh, mm] = String(resetTimeHHMM || "02:00").split(":").map(Number);
+      const [hh, mm] = String(resetTimeHHMM || globalCfg.defaultResetTimeLocal || "02:00").split(":").map(Number);
       const H = Number.isFinite(hh) ? hh : 2;
       const M = Number.isFinite(mm) ? mm : 0;
 
@@ -242,7 +310,8 @@
     }
 
     function effectiveResetTimeLocal(hall){
-      return (hall.resetTimeLocal || "02:00");
+      // hall.resetTimeLocal overrides global default; if missing use global default
+      return (hall?.resetTimeLocal || globalCfg.defaultResetTimeLocal || "02:00");
     }
 
     // radiusFeet standard with fallback
@@ -285,7 +354,7 @@
         snap.forEach(d => map[d.id] = d.data());
         liveStats = map;
         // update UI immediately when any device votes
-        renderStages();
+        renderStages(); // updates right panel + inline panel
       }, (err) => {
         showErr("Stage stats live error:\n" + (err?.message || String(err)));
       });
@@ -331,7 +400,13 @@
       liveDayKey = null;
     }
 
-    // Render hall list (always visible, open always works)
+    function alphaName(h){
+      return String(h?.name || h?.id || "").toLowerCase();
+    }
+
+    // Render hall list
+    // NEW: closest hall to you goes to the top (when location is shared)
+    // NEW: "Open" shows inline panel under that hall (between halls)
     function renderHallList(){
       const box = el("hallsBox");
       box.innerHTML = "";
@@ -341,7 +416,25 @@
         return;
       }
 
-      filteredHalls.forEach(h => {
+      // sort: closest first (if we have location + geo), otherwise alphabetical
+      const sorted = [...filteredHalls].sort((a,b)=>{
+        if (!myLoc){
+          return alphaName(a).localeCompare(alphaName(b));
+        }
+        const da = hallDistanceFeet(a);
+        const dbb = hallDistanceFeet(b);
+        const aHas = da != null;
+        const bHas = dbb != null;
+        if (aHas && bHas){
+          if (da !== dbb) return da - dbb;
+          return alphaName(a).localeCompare(alphaName(b));
+        }
+        if (aHas && !bHas) return -1;
+        if (!aHas && bHas) return 1;
+        return alphaName(a).localeCompare(alphaName(b));
+      });
+
+      sorted.forEach(h => {
         const dist = hallDistanceFeet(h);
         const radius = hallRadiusFeet(h);
         const resetTime = effectiveResetTimeLocal(h);
@@ -388,14 +481,78 @@
 
         const btn = document.createElement("button");
         btn.className = "openBtn";
-        btn.textContent = "Open";
+        btn.textContent = (selectedHall?.id === h.id) ? "Close" : "Open";
         btn.onclick = () => {
+          if (selectedHall?.id === h.id){
+            selectedHall = null;
+            stopLive();
+            renderDetailsEmpty();
+            renderHallList();
+            return;
+          }
           selectedHall = h;
           renderDetailsSelected();
+
+          // keep the opened hall visible (don’t jump to top/bottom)
+          item.scrollIntoView({ behavior:"smooth", block:"nearest" });
         };
 
         item.appendChild(titleRow);
         item.appendChild(btn);
+
+        // Inline detail panel (between halls) when selected
+        if (selectedHall?.id === h.id){
+          const inline = document.createElement("div");
+          inline.className = "inlineDetail";
+
+          const hdr = document.createElement("div");
+          hdr.className = "inlineHdr";
+
+          const hdrLeft = document.createElement("div");
+          const t = document.createElement("div");
+          t.className = "inlineTitle";
+          t.textContent = h.name || h.id;
+
+          const a = document.createElement("div");
+          a.className = "inlineAddr";
+          a.textContent = h.address || "";
+
+          hdrLeft.appendChild(t);
+          hdrLeft.appendChild(a);
+
+          const hdrRight = document.createElement("span");
+          hdrRight.className = "pill";
+          hdrRight.textContent = (!myLoc) ? "Location not shared"
+            : (dist == null) ? "Hall location not set"
+            : inside ? `Inside radius · ${Math.round(dist)} ft` : `Outside radius · ${Math.round(dist)} ft`;
+
+          hdr.appendChild(hdrLeft);
+          hdr.appendChild(hdrRight);
+
+          const grid = document.createElement("div");
+          grid.className = "stageGrid";
+          grid.dataset.inline = "1";
+
+          const msg = document.createElement("div");
+          msg.className = "note";
+
+          // delegate clicks for inline vote buttons
+          grid.onclick = (e) => {
+            const b = e.target.closest("button.voteBtn");
+            if (!b) return;
+            vote(b.dataset.stageId);
+          };
+
+          inline.appendChild(hdr);
+          inline.appendChild(grid);
+          inline.appendChild(msg);
+
+          item.appendChild(inline);
+
+          // render inline content (uses selectedHall + liveStats)
+          renderStagesInto(h, grid, msg);
+        }
+
         box.appendChild(item);
       });
     }
@@ -431,6 +588,7 @@
       // initial render (will update again from live listener)
       renderStages();
 
+      // list shows inline open panel under the hall
       renderHallList();
     }
 
@@ -444,25 +602,17 @@
       }
     }
 
-    // Render stages (uses LIVE stats)
-    function renderStages(){
-      const grid = el("stageGrid");
-      grid.innerHTML = "";
-      if (!selectedHall) return;
+    // Render stages into a given grid/message (used by right panel + inline panel)
+    function renderStagesInto(hall, gridEl, msgEl){
+      gridEl.innerHTML = "";
+      if (!hall) return;
 
-      const dist = hallDistanceFeet(selectedHall);
-      const radius = hallRadiusFeet(selectedHall);
+      const dist = hallDistanceFeet(hall);
+      const radius = hallRadiusFeet(hall);
       const inside = !!myLoc && (dist != null) && (dist <= radius);
 
-      const dayKey = liveDayKey || dayKeyFromReset(effectiveResetTimeLocal(selectedHall));
+      const dayKey = liveDayKey || dayKeyFromReset(effectiveResetTimeLocal(hall));
       const stats = liveStats || {};
-
-      // delegate clicks
-      grid.onclick = (e) => {
-        const b = e.target.closest("button.voteBtn");
-        if (!b) return;
-        vote(b.dataset.stageId);
-      };
 
       DEFAULT_STAGES.forEach(st => {
         const s = stats[st.id] || {};
@@ -485,7 +635,7 @@
         btn.type = "button";
         btn.dataset.stageId = st.id;
 
-        const voteKey = `voted:${selectedHall.id}:${dayKey}:${st.id}`;
+        const voteKey = `voted:${hall.id}:${dayKey}:${st.id}`;
         const already = localStorage.getItem(voteKey) === "1";
 
         if (!inside){
@@ -502,18 +652,38 @@
         card.appendChild(name);
         card.appendChild(statsLine);
         card.appendChild(btn);
-        grid.appendChild(card);
+        gridEl.appendChild(card);
       });
 
       if (!myLoc){
-        el("statusMsg").textContent = "View only. Share location to see inside/outside and to thumbs-up when inside.";
+        msgEl.textContent = "View only. Share location to see inside/outside and to thumbs-up when inside.";
       } else if (dist == null){
-        el("statusMsg").textContent = "Hall location not set. Admin must add geo.lat / geo.lng.";
+        msgEl.textContent = "Hall location not set. Admin must add geo.lat / geo.lng.";
       } else if (!inside){
-        el("statusMsg").textContent = "Outside radius. You can view only.";
+        msgEl.textContent = "Outside radius. You can view only.";
       } else {
-        el("statusMsg").textContent = "Inside radius. You can thumbs-up the current stage.";
+        msgEl.textContent = "Inside radius. You can thumbs-up the current stage.";
       }
+    }
+
+    // Render stages (right panel) + keep inline panel refreshed
+    function renderStages(){
+      if (!selectedHall){
+        renderDetailsEmpty();
+        return;
+      }
+
+      // right panel events (delegate)
+      el("stageGrid").onclick = (e) => {
+        const b = e.target.closest("button.voteBtn");
+        if (!b) return;
+        vote(b.dataset.stageId);
+      };
+
+      renderStagesInto(selectedHall, el("stageGrid"), el("statusMsg"));
+
+      // refresh inline open panel with current live counts/last time + buttons
+      renderHallList();
     }
 
     // Vote writes to stageStats; live listener will update everyone's counts
@@ -573,10 +743,12 @@
           myLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
           myAccuracyFt = (pos.coords.accuracy || 0) * 3.28084;
           el("locLine").textContent = `Location set · accuracy ~${Math.round(myAccuracyFt)} ft`;
+
+          // closest hall first now that we have location
           renderHallList();
 
           if (selectedHall){
-            // if dayKey might change because resetTime changed, restart listener
+            // dayKey might change if resetTime changed; restart listener
             startStageStatsListener();
             renderDetailsSelected();
           }
@@ -597,6 +769,8 @@
     el("locBtn").onclick = requestLocation;
     el("searchInput").addEventListener("input", applySearch);
 
+    // init
+    await loadGlobalConfig();
     await loadHalls();
     renderDetailsEmpty();
   </script>
