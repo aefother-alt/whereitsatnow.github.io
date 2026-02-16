@@ -6,13 +6,13 @@
   <title>Where It’s At Now</title>
 
   <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-ZGML878333"></script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-ZGML878333');
-</script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-ZGML878333"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-ZGML878333');
+  </script>
 
   <style>
     :root{
@@ -501,8 +501,6 @@
           }
           selectedHall = h;
           renderDetailsSelected();
-
-          // keep the opened hall visible (don’t jump to top/bottom)
           item.scrollIntoView({ behavior:"smooth", block:"nearest" });
         };
 
@@ -545,7 +543,6 @@
           const msg = document.createElement("div");
           msg.className = "note";
 
-          // delegate clicks for inline vote buttons
           grid.onclick = (e) => {
             const b = e.target.closest("button.voteBtn");
             if (!b) return;
@@ -557,8 +554,6 @@
           inline.appendChild(msg);
 
           item.appendChild(inline);
-
-          // render inline content (uses selectedHall + liveStats)
           renderStagesInto(h, grid, msg);
         }
 
@@ -591,13 +586,8 @@
 
       el("stagesWrap").style.display = "block";
 
-      // start live stats for this hall/day
       startStageStatsListener();
-
-      // initial render (will update again from live listener)
       renderStages();
-
-      // list shows inline open panel under the hall
       renderHallList();
     }
 
@@ -682,7 +672,6 @@
         return;
       }
 
-      // right panel events (delegate)
       el("stageGrid").onclick = (e) => {
         const b = e.target.closest("button.voteBtn");
         if (!b) return;
@@ -708,7 +697,7 @@
 
       const resetTime = effectiveResetTimeLocal(selectedHall);
       const dayKey = dayKeyFromReset(resetTime);
-      liveDayKey = dayKey; // keep consistent
+      liveDayKey = dayKey;
 
       const voteKey = `voted:${selectedHall.id}:${dayKey}:${stageId}`;
       if (localStorage.getItem(voteKey) === "1"){
@@ -730,7 +719,6 @@
         localStorage.setItem(voteKey, "1");
 
         el("statusMsg").textContent = "Vote recorded.";
-        // No need to manually re-fetch: onSnapshot will update shortly
         renderStages();
       } catch (e) {
         showErr("Vote failed:\n" + (e?.message || String(e)));
@@ -753,11 +741,9 @@
           myAccuracyFt = (pos.coords.accuracy || 0) * 3.28084;
           el("locLine").textContent = `Location set · accuracy ~${Math.round(myAccuracyFt)} ft`;
 
-          // closest hall first now that we have location
           renderHallList();
 
           if (selectedHall){
-            // dayKey might change if resetTime changed; restart listener
             startStageStatsListener();
             renderDetailsSelected();
           }
